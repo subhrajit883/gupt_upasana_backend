@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema({
   // state: { type: String, trim: true },
   type: { type: String, enum: ["individual", "organisation"], default: "individual" },
   password: { type: String, required: true, minlength: 6, select: false },
+  passwordResetToken: { type: String, select: false },
+  passwordResetExpires: { type: Date, select: false },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 

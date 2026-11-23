@@ -1,6 +1,7 @@
 
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import Admin from "../models/Admin.js";
 
 // Donor authentication
 export async function protect(req, res, next) {
@@ -65,16 +66,24 @@ export async function protectAdmin(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (decoded.id !== "admin" || decoded.role !== "admin") {
+    if (decoded.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Admin access required",
       });
     }
 
+    const admin = await Admin.findById(decoded.id).select("-password");
+    if (!admin || !admin.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "Admin account is unavailable",
+      });
+    }
+
     req.admin = {
-      id: "admin",
-      email: process.env.ADMIN_EMAIL,
+      id: admin._id.toString(),
+      email: admin.email,
       role: "admin",
     };
 

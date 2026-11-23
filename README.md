@@ -133,11 +133,17 @@ Dynamic (date-limited) package:
 
 ## 5. API endpoints
 
+Password reset emails require `EMAIL_USER` and `EMAIL_PASS`; configure `EMAIL_HOST`/`EMAIL_PORT` as needed. Set `FRONTEND_URL` to the frontend origin where `/reset-password?token=...` is handled.
+
 - `POST /api/auth/register` user registration
 - `POST /api/auth/login` `{identifier, password}` (phone or email)
+- `POST /api/auth/forgot-password` `{email}`; emails a one-hour password reset link when an active account exists
+- `POST /api/auth/reset-password` `{token, newPassword}`; consumes the one-time reset token
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
 - `POST /api/auth/bootstrap-admin` one-time protected admin bootstrap
+- `PATCH /api/admin/change-password` `{currentPassword, newPassword}`; changes the signed-in admin's password
+- `POST /api/admin/users/:id/password-reset` emails a one-hour reset link to the user's current email address
 - `GET /api/packages` public active packages; admin can view all with token
 - `POST /api/packages` admin create; `PATCH/DELETE /api/packages/:id`
 - `POST /api/donations/create-order` authenticated; server validates amount and creates Razorpay order

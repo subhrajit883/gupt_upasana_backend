@@ -1,5 +1,7 @@
 import User from "../models/User.js";
+import Admin from "../models/Admin.js";
 import jwt from "jsonwebtoken";
+import { emailPasswordResetLink } from "../utils/passwordReset.js";
 
 
 
@@ -14,20 +16,37 @@ export async function adminLogin(req, res) {
     });
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL;
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  const normalizedEmail = email.trim().toLowerCase();
+  let admin = await Admin.findOne({ email: normalizedEmail }).select("+password");
+  let isValidLogin = false;
 
-  if (!adminEmail || !adminPassword) {
-    return res.status(500).json({
-      success: false,
-      message: "Admin credentials are not configured",
-    });
+  if (admin) {
+    isValidLogin = admin.isActive && await admin.comparePassword(password);
+  } else {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminEmail || !adminPassword) {
+      return res.status(500).json({
+        success: false,
+        message: "Admin credentials are not configured",
+      });
+    }
+
+    if (
+      normalizedEmail === adminEmail.trim().toLowerCase() &&
+      password === adminPassword
+    ) {
+      admin = await Admin.create({
+        name: "Administrator",
+        email: normalizedEmail,
+        password,
+      });
+      isValidLogin = true;
+    }
   }
 
-  if (
-    email.trim().toLowerCase() !== adminEmail.trim().toLowerCase() ||
-    password !== adminPassword
-  ) {
+  if (!isValidLogin) {
     return res.status(401).json({
       success: false,
       message: "Invalid admin credentials",
@@ -35,9 +54,9 @@ export async function adminLogin(req, res) {
   }
 
   const token = jwt.sign(
-    { id: "admin", role: "admin" },
+    { id: admin._id.toString(), email: admin.email, role: "admin" },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+    { expiresIn: process.env.JWT_EXPIRES_IN || "30d" }
   );
 
   res.json({
@@ -45,9 +64,27 @@ export async function adminLogin(req, res) {
     message: "Admin login successful",
     token,
     admin: {
-      email: adminEmail,
+      email: admin.email,
       role: "admin",
     },
+  });
+}
+
+export async function sendUserPasswordReset(req, res) {
+  const user = await User.findById(req.params.id);
+
+  if (!user || !user.email) {
+    return res.status(404).json({
+      success: false,
+      message: "User or user's email address not found",
+    });
+  }
+
+  await emailPasswordResetLink(user);
+
+  res.json({
+    success: true,
+    message: "Password reset link sent to the user's current email address",
   });
 }
 
