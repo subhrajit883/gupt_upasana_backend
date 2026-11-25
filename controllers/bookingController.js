@@ -2,11 +2,27 @@ import crypto from "crypto";
 import Booking from "../models/Booking.js";
 
 export async function createBooking(req, res) {
-  const { pujaName, pujaDate, slot, devotees, sankalp, specialRequest } = req.body;
-  if (!pujaName || !pujaDate) return res.status(400).json({ success: false, message: "pujaName and pujaDate are required" });
+  const {
+    pujaName,
+    pujaDate,
+    slot,
+    devotees,
+    sankalp,
+    sankalpPurpose,
+    specialRequest,
+    preferredPujaLocation,
+  } = req.body;
   const booking = await Booking.create({
     bookingNo: `BK-${Date.now()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`,
-    user: req.user._id, pujaName, pujaDate, slot, devotees, sankalp, specialRequest
+    user: req.user._id,
+    pujaName: pujaName ?? "",
+    pujaDate: pujaDate || null,
+    slot: slot ?? "",
+    devotees: Array.isArray(devotees) ? devotees : [],
+    sankalp: sankalp ?? "",
+    sankalpPurpose: sankalpPurpose ?? "",
+    specialRequest: specialRequest ?? "",
+    preferredPujaLocation: preferredPujaLocation ?? "",
   });
   res.status(201).json({ success: true, booking });
 }

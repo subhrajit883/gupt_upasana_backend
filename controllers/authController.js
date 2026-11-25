@@ -12,7 +12,13 @@ export async function register(req, res) {
     password,
     address,
     type,
-  } = req.body;
+    UserImg,
+    companyName,
+    authorisedContact,
+    designation,
+    sankalp,
+    reasonForVisit,
+  } = req.body || {};
 
   if (!name || !phone || !password) {
     return res.status(400).json({
@@ -42,6 +48,10 @@ export async function register(req, res) {
     });
   }
 
+  const userImage = req.file
+    ? { url: req.file.path, publicId: req.file.filename }
+    : UserImg;
+
   // Create donor account
   const user = await User.create({
     name,
@@ -50,6 +60,12 @@ export async function register(req, res) {
     password,
     address,
     type,
+    UserImg: userImage,
+    companyName,
+    authorisedContact,
+    designation,
+    sankalp,
+    reasonForVisit,
   });
 
   const token = generateToken(user);
@@ -191,6 +207,12 @@ function publicUser(user) {
     phone: user.phone,
     email: user.email,
     address: user.address,
+    UserImg: user.UserImg,
     type: user.type,
+    companyName: user.companyName,
+    authorisedContact: user.authorisedContact,
+    designation: user.designation,
+    sankalp: user.sankalp,
+    reasonForVisit: user.reasonForVisit,
   };
 }

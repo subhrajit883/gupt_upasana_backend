@@ -1,5 +1,7 @@
 import crypto from "crypto";
+import mongoose from "mongoose";
 import Razorpay from "razorpay";
+import Booking from "../models/Booking.js";
 import Donation from "../models/Donation.js";
 import DonationPackage from "../models/DonationPackage.js";
 import sendEmail from "../utils/sendEmail.js";
@@ -28,11 +30,28 @@ function verifyCheckoutSignature(orderId, paymentId, signature) {
 
 /**
  * POST /api/donations/create-order
- * Body: { packageId?, amount, amountOptionId?, purpose?, donorMessage?, anonymous?, bookingId? }
+ * Body: { packageId?, amount, amountOptionId?, purpose?, donorMessage?, anonymous?, bookingId?, pujaName?, pujaDate?, slot?, devotees?, sankalp?, sankalpPurpose?, specialRequest?, preferredPujaLocation? }
+ * A booking is created automatically unless an unlinked bookingId is supplied.
  * The server calculates/validates amount. Never trust amount sent by frontend for fixed packages.
  */
 export async function createDonationOrder(req, res) {
-  const { packageId, amount, amountOptionId, purpose, donorMessage, anonymous, bookingId } = req.body;
+  const {
+    packageId,
+    amount,
+    amountOptionId,
+    purpose,
+    donorMessage,
+    anonymous,
+    bookingId,
+    pujaName,
+    pujaDate,
+    slot,
+    devotees,
+    sankalp,
+    sankalpPurpose,
+    specialRequest,
+    preferredPujaLocation,
+  } = req.body;
   let selectedPackage = null;
   let finalAmount = Number(amount);
 
@@ -59,15 +78,27 @@ export async function createDonationOrder(req, res) {
   if (!Number.isFinite(finalAmount) || finalAmount <= 0 || finalAmount > 10000000) {
     return res.status(400).json({ success: false, message: "Donation amount must be between ₹1 and ₹1,00,00,000" });
   }
+
+  let existingBooking = null;
+  if (bookingId) {
+    if (!mongoose.isValidObjectId(bookingId)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+    existingBooking = await Booking.findOne({ _id: bookingId, user: req.user._id });
+    if (!existingBooking) return res.status(404).json({ success: false, message: "Booking not found" });
+    if (existingBooking.donation) return res.status(409).json({ success: false, message: "Booking is already linked to a donation" });
+  }
+
   const currency = process.env.RAZORPAY_CURRENCY || "INR";
   const donation = await Donation.create({
     donor: req.user._id, donorSnapshot: donorSnapshot(req.user),
     donationPackage: selectedPackage?._id, packageNameSnapshot: selectedPackage?.name,
     amount: finalAmount, currency, paymentStatus: "created",
-    purpose, donorMessage, anonymous: Boolean(anonymous), booking: bookingId || undefined,
+    purpose, donorMessage, anonymous: Boolean(anonymous), booking: existingBooking?._id,
     receiptNo: makeReceiptNo()
   });
 
+  let createdBooking = null;
   try {
     const order = await razorpayClient().orders.create({
       amount: Math.round(finalAmount * 100), // Razorpay amount is in paise
@@ -75,6 +106,27 @@ export async function createDonationOrder(req, res) {
       receipt: donation.receiptNo,
       notes: { donationId: donation._id.toString(), donorId: req.user._id.toString(), packageName: selectedPackage?.name || "General donation" }
     });
+
+    if (existingBooking) {
+      existingBooking.donation = donation._id;
+      await existingBooking.save();
+    } else {
+      createdBooking = await Booking.create({
+        bookingNo: `BK-${Date.now()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`,
+        user: req.user._id,
+        pujaName: pujaName ?? "",
+        pujaDate: pujaDate || null,
+        slot: slot ?? "",
+        devotees: Array.isArray(devotees) ? devotees : [],
+        sankalp: sankalp ?? "",
+        sankalpPurpose: sankalpPurpose ?? "",
+        specialRequest: specialRequest ?? "",
+        preferredPujaLocation: preferredPujaLocation ?? "",
+        donation: donation._id,
+      });
+      donation.booking = createdBooking._id;
+    }
+
     donation.razorpayOrderId = order.id;
     donation.paymentStatus = "pending";
     await donation.save();
@@ -82,11 +134,28 @@ export async function createDonationOrder(req, res) {
     res.status(201).json({
       success: true,
       donationId: donation._id,
+      bookingId: donation.booking,
       order: { id: order.id, amount: order.amount, currency: order.currency, receipt: order.receipt },
       razorpay: { keyId: process.env.RAZORPAY_KEY_ID, orderId: order.id, amount: order.amount, currency: order.currency },
       donor: { name: req.user.name, email: req.user.email, contact: req.user.phone }
     });
   } catch (error) {
+    if (createdBooking) {
+      try {
+        await createdBooking.deleteOne();
+      } catch (cleanupError) {
+        console.error(`Failed to remove booking ${createdBooking._id} after donation order failure:`, cleanupError);
+      }
+    }
+    if (existingBooking?.donation?.toString() === donation._id.toString()) {
+      existingBooking.donation = undefined;
+      try {
+        await existingBooking.save();
+      } catch (cleanupError) {
+        console.error(`Failed to unlink booking ${existingBooking._id} after donation order failure:`, cleanupError);
+      }
+    }
+    donation.booking = undefined;
     donation.paymentStatus = "failed";
     donation.failureReason = error.message;
     await donation.save();

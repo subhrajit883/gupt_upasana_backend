@@ -10,6 +10,7 @@ import userRoutes from "./routers/userRoutes.js";
 import packageRoutes from "./routers/packageRoutes.js";
 import donationRoutes from "./routers/donationRoutes.js";
 import bookingRoutes from "./routers/bookingRoutes.js";
+import enquiryRoutes from "./routers/enquiryRoutes.js";
 import pujaUpdateRoutes from "./routers/pujaUpdateRoutes.js";
 import adminRoutes from "./routers/adminRoutes.js";
 import { errorMiddleware, notFoundMiddleware } from "./middleware/errorMiddleware.js";
@@ -41,6 +42,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/packages", packageRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/bookVisits", enquiryRoutes);
 app.use("/api/puja-updates", pujaUpdateRoutes);
 app.use("/api/admin", adminRoutes);
 
