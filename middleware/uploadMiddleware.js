@@ -15,12 +15,21 @@ const storage = new CloudinaryStorage({
       throw new Error("Unsupported file type. Upload JPG, PNG, WEBP or PDF files only.");
     }
     const isPdf = file.mimetype === "application/pdf";
-    if (file.fieldname === "packageImg" && isPdf) {
-      throw new Error("Package image must be an image file.");
+    const isPackageImage = file.fieldname === "packageImg";
+    const isServiceImage = file.fieldname === "serviceImg";
+    const isServiceBookingPhoto = ["devoteePhoto", "employeePhotos", "familyPhotos"].includes(file.fieldname);
+    if ((isPackageImage || isServiceImage || isServiceBookingPhoto) && isPdf) {
+      throw new Error("Photo uploads must be image files.");
     }
     const safeName = file.originalname.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9.-]/g, "_");
     return {
-      folder: file.fieldname === "packageImg" ? "gupt-upasana/packages" : "gupt-upasana/documents",
+      folder: isPackageImage
+        ? "gupt-upasana/packages"
+        : isServiceImage
+          ? "gupt-upasana/services"
+          : isServiceBookingPhoto
+            ? "gupt-upasana/service-bookings"
+            : "gupt-upasana/documents",
       
       resource_type: isPdf ? "raw" : "image",
       public_id: `${Date.now()}-${safeName}${isPdf ? ".pdf" : ""}`

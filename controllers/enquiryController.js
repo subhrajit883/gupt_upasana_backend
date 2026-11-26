@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Enquiry from "../models/Enquiry.js";
 
+const enquiryVisitStatuses = ["pending", "visited", "not_visited"];
+
 const enquiryFields = [
   "message",
   "visitDate",
@@ -25,6 +27,7 @@ function validId(id, res) {
   if (mongoose.isValidObjectId(id)) return true;
   res.status(400).json({ success: false, message: "Invalid enquiry ID" });
   return false;
+  
 }
 
 export async function createEnquiry(req, res) {
@@ -61,6 +64,25 @@ export async function updateEnquiry(req, res) {
   if (!enquiry) return res.status(404).json({ success: false, message: "Enquiry not found" });
 
   enquiry.set(pickEnquiryFields(req.body, true));
+  await enquiry.save();
+  res.json({ success: true, enquiry });
+}
+
+export async function updateEnquiryStatus(req, res) {
+  if (!validId(req.params.id, res)) return;
+
+  const { visitStatus } = req.body;
+  if (!enquiryVisitStatuses.includes(visitStatus)) {
+    return res.status(400).json({
+      success: false,
+      message: `visitStatus must be one of: ${enquiryVisitStatuses.join(", ")}`,
+    });
+  }
+
+  const enquiry = await Enquiry.findById(req.params.id);
+  if (!enquiry) return res.status(404).json({ success: false, message: "Enquiry not found" });
+
+  enquiry.visitStatus = visitStatus;
   await enquiry.save();
   res.json({ success: true, enquiry });
 }

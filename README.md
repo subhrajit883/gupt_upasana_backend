@@ -36,8 +36,8 @@ Remove/rotate `ADMIN_BOOTSTRAP_KEY` after creating admin. Admin login uses `/api
 
 1. In Razorpay Dashboard, switch to **Test Mode** and copy the Test Key ID and Key Secret into `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
 2. Keep `RAZORPAY_CURRENCY=INR`.
-3. Configure webhook URL: `https://YOUR_API_DOMAIN/api/donations/razorpay/webhook`.
-4. Subscribe to `payment.captured` and `payment.failed` events. Copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET` (this is NOT the Key Secret).
+3. Configure both webhook URLs: `https://YOUR_API_DOMAIN/api/donations/razorpay/webhook` and `https://YOUR_API_DOMAIN/api/service-bookings/razorpay/webhook`.
+4. Subscribe both webhooks to `payment.captured` and `payment.failed` events. Use the same webhook secret for both URLs and set it as `RAZORPAY_WEBHOOK_SECRET` (this is NOT the Key Secret).
 5. Deploy/restart the backend after changing env credentials. Never expose `RAZORPAY_KEY_SECRET` or webhook secret in frontend.
 6. Frontend loads Razorpay Checkout script `https://checkout.razorpay.com/v1/checkout.js`, calls create-order, opens Checkout using returned `razorpay.keyId`, and posts Checkout response fields to verify-payment.
 7. Test success, failure, cancellation, duplicate webhook delivery, and amount mismatch in Test Mode. Use Live credentials only after account activation and your own compliance review.
@@ -84,6 +84,33 @@ Load the script before the code above:
 ```
 
 **Important:** `payment.captured` webhook is the backup source of truth for asynchronous payment confirmation. Checkout handler alone is not proof of payment. This starter marks `receiptGenerated=true` after payment is captured/verified and allocates a unique receipt number at order creation; actual PDF/email receipt generation is not implemented.
+
+## Service packages and bookings
+
+Admins create services at `/api/services` with `serviceCategory` set to `regular_puja`, `havan`, `seva`, or `special_puja`. `serviceAmounts` is an array of admin-managed price options. For `regular_puja`, each amount must include a unique `frequency`: `weekly`, `monthly`, `half_yearly`, or `yearly`. Service images are uploaded as `serviceImg`; package status is `draft`, `published`, or `archived`, with `active` controlling availability.
+
+Example regular puja package body:
+```json
+{
+  "serviceName": "Lakshmi Puja",
+  "serviceCategory": "regular_puja",
+  "serviceDescription": "Regular Lakshmi puja service",
+  "serviceAmounts": [
+    { "label": "Weekly", "amount": 501, "frequency": "weekly" },
+    { "label": "Monthly", "amount": 1501, "frequency": "monthly" },
+    { "label": "Half-yearly", "amount": 7501, "frequency": "half_yearly" },
+    { "label": "Yearly", "amount": 15001, "frequency": "yearly" }
+  ],
+  "serviceBenefits": ["Puja performed by a priest"],
+  "serviceRules": ["Preferred dates are subject to confirmation"],
+  "active": true,
+  "status": "published"
+}
+```
+
+Authenticated users create a service booking order with `servicePackageId`, `serviceAmountId`, `devoteeName`, and `devoteeType`. Optional fields include `devoteePhoto`, `devoteeCompanyName`, `devoteeDesignation`, `traditionalIntention`, `gotra`, `sankalp`, `preferredDate`, and `preferredLocation`. For organizations, send `employees` as a JSON array of `{ "name": "..." }`; for individuals, send `familyMembers` as a JSON array of `{ "name": "...", "relation": "..." }`. Upload employee and family photos as `employeePhotos` and `familyPhotos` files in matching array order. A devotee photo may be uploaded as `devoteePhoto`. The same endpoint accepts JSON with photo objects containing `url` and optional `publicId`.
+
+The server selects the amount from the service package and handles Razorpay order creation, signature/payment verification, and the webhook. Do not send a client-calculated amount.
 
 ## 4. Package payload examples
 
@@ -146,6 +173,13 @@ Password reset emails require `EMAIL_USER` and `EMAIL_PASS`; configure `EMAIL_HO
 - `POST /api/admin/users/:id/password-reset` emails a one-hour reset link to the user's current email address
 - `GET /api/packages` public active packages; admin can view all with token
 - `POST /api/packages` admin create; `PATCH/DELETE /api/packages/:id`
+- `GET /api/services` public active services; admin service listing at `/api/services/admin/all`
+- `POST /api/services` admin create; `PATCH/DELETE /api/services/:id`; admin detail at `/api/services/admin/:id`
+- `POST /api/service-bookings/create-order` authenticated; amount is selected server-side from the package
+- `POST /api/service-bookings/verify-payment` authenticated signature + payment API verification
+- `POST /api/service-bookings/razorpay/webhook` Razorpay webhook (raw body)
+- `GET /api/service-bookings/my`; admin list/detail at `/api/service-bookings/admin/all` and `/api/service-bookings/admin/:id`
+- `PATCH /api/service-bookings/:id/status` admin booking status management
 - `POST /api/donations/create-order` authenticated; server validates amount and creates Razorpay order
 - `POST /api/donations/verify-payment` authenticated signature + payment API verification
 - `POST /api/donations/razorpay/webhook` Razorpay webhook (raw body)
