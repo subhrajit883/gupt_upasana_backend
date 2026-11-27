@@ -1,11 +1,17 @@
 import mongoose from "mongoose";
 
 export const regularPujaFrequencies = ["daily", "weekly", "monthly", "half_yearly", "yearly"];
+export const serviceCategories = ["regular_puja", "havan", "seva", "special_puja"];
 
 const serviceAmountSchema = new mongoose.Schema({
   amount: { type: Number, required: true, min: 1 },
   label: { type: String, trim: true },
   frequency: { type: String, enum: regularPujaFrequencies },
+  serviceSubCategory: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ServiceSubCategory",
+    required: true,
+  },
 });
 
 const servicePackageSchema = new mongoose.Schema({
@@ -13,7 +19,7 @@ const servicePackageSchema = new mongoose.Schema({
   serviceCategory: {
     type: String,
     required: true,
-    enum: ["regular_puja", "havan", "seva", "special_puja"],
+    enum: serviceCategories,
   },
   serviceDescription: { type: String, trim: true },
   serviceImg: {
@@ -30,12 +36,20 @@ const servicePackageSchema = new mongoose.Schema({
 servicePackageSchema.pre("validate", function () {
   if (this.serviceCategory !== "regular_puja") return;
 
-  const frequencies = this.serviceAmounts.map(option => option.frequency);
-  if (frequencies.some(frequency => !frequency)) {
+  const amounts = this.serviceAmounts;
+  if (amounts.some(option => !option.frequency)) {
     this.invalidate("serviceAmounts", "Every regular puja amount must specify a frequency");
   }
-  if (new Set(frequencies).size !== frequencies.length) {
-    this.invalidate("serviceAmounts", "Regular puja frequencies must be unique");
+  const subCategoryFrequencyPairs = amounts
+    .map(option => {
+      const subCategoryId = option.serviceSubCategory?.toString();
+      return subCategoryId && option.frequency
+        ? `${subCategoryId}:${option.frequency}`
+        : "";
+    })
+    .filter(Boolean);
+  if (new Set(subCategoryFrequencyPairs).size !== subCategoryFrequencyPairs.length) {
+    this.invalidate("serviceAmounts", "Regular puja subcategory and frequency combinations must be unique");
   }
 });
 

@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
-import ServicePackage from "../models/ServicePackage.js";
+import ServicePackage, { serviceCategories } from "../models/ServicePackage.js";
+import ServiceSubCategory from "../models/ServiceSubCategory.js";
 import deleteFromCloudinary from "../utils/deleteFromCloudinary.js";
 
-const serviceCategories = ["regular_puja", "havan", "seva", "special_puja"];
 const packageStatuses = ["draft", "published", "archived"];
 const packageFields = new Set([
   "serviceName",
@@ -78,15 +78,19 @@ function pickServicePackageFields(data) {
       if (!option || typeof option !== "object" || Array.isArray(option)) {
         throw badRequest("Each service amount must be an object");
       }
-      const { amount, label, frequency } = option;
+      const { amount, label, frequency, serviceSubCategory } = option;
       const numericAmount = Number(amount);
       if (!Number.isFinite(numericAmount) || numericAmount < 1) {
         throw badRequest("Each service amount must be a number greater than or equal to 1");
+      }
+      if (!mongoose.isValidObjectId(serviceSubCategory)) {
+        throw badRequest("Each service amount must include a valid serviceSubCategory ID");
       }
       return {
         amount: numericAmount,
         ...(label !== undefined && { label }),
         ...(frequency !== undefined && { frequency }),
+        serviceSubCategory,
       };
     });
   }
@@ -100,16 +104,41 @@ function pickServicePackageFields(data) {
   return packageData;
 }
 
+async function validateServiceAmountSubCategories(serviceCategory, serviceAmounts) {
+  if (!Array.isArray(serviceAmounts) || !serviceAmounts.length) {
+    throw badRequest("Add at least one service amount");
+  }
+  const subCategoryIds = serviceAmounts.map(option => {
+    if (!option?.serviceSubCategory) {
+      throw badRequest("Each service amount must include a serviceSubCategory ID");
+    }
+    return option.serviceSubCategory.toString();
+  });
+  const uniqueIds = [...new Set(subCategoryIds)];
+  const subCategories = await ServiceSubCategory.find({
+    _id: { $in: uniqueIds },
+    serviceCategory,
+  }).select("_id");
+
+  if (subCategories.length !== uniqueIds.length) {
+    throw badRequest("Each service amount must use a subcategory from its service category");
+  }
+}
+
 export async function listServicePackages(req, res) {
   const filter = req.user?.role === "admin"
     ? {}
     : { active: true, status: "published" };
-  const packages = await ServicePackage.find(filter).sort({ createdAt: -1 });
+  const packages = await ServicePackage.find(filter)
+    .populate("serviceAmounts.serviceSubCategory", "name serviceCategory")
+    .sort({ createdAt: -1 });
   res.json({ success: true, packages });
 }
 
 export async function listAllServicePackages(_req, res) {
-  const packages = await ServicePackage.find().sort({ createdAt: -1 });
+  const packages = await ServicePackage.find()
+    .populate("serviceAmounts.serviceSubCategory", "name serviceCategory")
+    .sort({ createdAt: -1 });
   res.json({ success: true, count: packages.length, packages });
 }
 
@@ -117,7 +146,8 @@ export async function getServicePackage(req, res) {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ success: false, message: "Invalid service package ID" });
   }
-  const item = await ServicePackage.findById(req.params.id);
+  const item = await ServicePackage.findById(req.params.id)
+    .populate("serviceAmounts.serviceSubCategory", "name serviceCategory");
   if (!item) return res.status(404).json({ success: false, message: "Service package not found" });
   if (!req.admin && req.user?.role !== "admin" && (!item.active || item.status !== "published")) {
     return res.status(404).json({ success: false, message: "Service package not available" });
@@ -127,6 +157,7 @@ export async function getServicePackage(req, res) {
 
 export async function createServicePackage(req, res) {
   const packageData = pickServicePackageFields(req.body);
+  await validateServiceAmountSubCategories(packageData.serviceCategory, packageData.serviceAmounts);
   if (req.file) {
     packageData.serviceImg = { url: req.file.path, publicId: req.file.filename };
   }
@@ -141,8 +172,15 @@ export async function updateServicePackage(req, res) {
   const item = await ServicePackage.findById(req.params.id);
   if (!item) return res.status(404).json({ success: false, message: "Service package not found" });
 
+  const packageData = pickServicePackageFields(req.body);
+  if (packageData.serviceAmounts !== undefined || packageData.serviceCategory !== undefined) {
+    await validateServiceAmountSubCategories(
+      packageData.serviceCategory || item.serviceCategory,
+      packageData.serviceAmounts || item.serviceAmounts,
+    );
+  }
   const previousImagePublicId = item.serviceImg?.publicId;
-  item.set(pickServicePackageFields(req.body));
+  item.set(packageData);
   if (req.file) {
     item.serviceImg = { url: req.file.path, publicId: req.file.filename };
   }

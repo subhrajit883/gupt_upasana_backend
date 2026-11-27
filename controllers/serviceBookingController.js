@@ -86,26 +86,39 @@ function filePhoto(file) {
   return file ? { url: file.path, publicId: file.filename } : undefined;
 }
 
-function preparePeople(value, field, files) {
+function preparePeople(value, field, files, photoIndexesValue) {
   const people = parseArray(value, field);
-  if (files?.length > people.length) {
-    throw badRequest(`There are more uploaded photos than ${field} entries`);
+  const photoIndexes = photoIndexesValue === undefined
+    ? (files || []).map((_file, index) => index)
+    : parseArray(photoIndexesValue, `${field}PhotoIndexes`);
+  if (photoIndexes.length !== (files || []).length) {
+    throw badRequest(`${field} photo indexes must match the uploaded photos`);
   }
+  const photoByPerson = new Map();
+  photoIndexes.forEach((index, fileIndex) => {
+    if (!Number.isInteger(index) || index < 0 || index >= people.length || photoByPerson.has(index)) {
+      throw badRequest(`${field} photo indexes must be unique valid entry indexes`);
+    }
+    photoByPerson.set(index, files[fileIndex]);
+  });
   return people.map((person, index) => {
     if (!person || typeof person !== "object" || Array.isArray(person)) {
       throw badRequest(`Each ${field} entry must be an object`);
     }
-    const photo = filePhoto(files?.[index]) || parsePhoto(person.photo);
+    const photo = filePhoto(photoByPerson.get(index)) || parsePhoto(person.photo);
     if (typeof person.name !== "string" || !person.name.trim()) {
       throw badRequest(`${field} entries must include a name`);
     }
-    if (!photo?.url) throw badRequest(`A photo is required for every ${field} entry`);
     if (field === "familyMembers" && (typeof person.relation !== "string" || !person.relation.trim())) {
       throw badRequest("Family members must include a relation");
+    }
+    if (person.gotra != null && typeof person.gotra !== "string") {
+      throw badRequest(`${field} gotra must be a string`);
     }
     return {
       name: person.name.trim(),
       ...(field === "familyMembers" && { relation: person.relation.trim() }),
+      ...(person.gotra?.trim() && { gotra: person.gotra.trim() }),
       photo,
     };
   });
@@ -117,8 +130,8 @@ function buildBookingData(body, files) {
     throw badRequest("devoteeType must be individual or organization");
   }
 
-  const employees = preparePeople(body.employees, "employees", files?.employeePhotos);
-  const familyMembers = preparePeople(body.familyMembers, "familyMembers", files?.familyPhotos);
+  const employees = preparePeople(body.employees, "employees", files?.employeePhotos, body.employeePhotoIndexes);
+  const familyMembers = preparePeople(body.familyMembers, "familyMembers", files?.familyPhotos, body.familyPhotoIndexes);
   if (devoteeType === "organization" && familyMembers.length) {
     throw badRequest("Organization bookings cannot include family members");
   }
@@ -148,7 +161,6 @@ function buildBookingData(body, files) {
     gotra: body.gotra,
     sankalp: body.sankalp,
     preferredDate: body.preferredDate || undefined,
-    preferredLocation: body.preferredLocation,
   };
 }
 

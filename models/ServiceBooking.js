@@ -8,21 +8,15 @@ const imageSchema = new mongoose.Schema({
 
 const employeeSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  photo: {
-    type: imageSchema,
-    required: true,
-    validate: { validator: photo => Boolean(photo?.url), message: "Employee photo is required" },
-  },
+  gotra: { type: String, trim: true },
+  photo: imageSchema,
 }, { _id: false });
 
 const familyMemberSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   relation: { type: String, required: true, trim: true },
-  photo: {
-    type: imageSchema,
-    required: true,
-    validate: { validator: photo => Boolean(photo?.url), message: "Family member photo is required" },
-  },
+  gotra: { type: String, trim: true },
+  photo: imageSchema,
 }, { _id: false });
 
 const serviceBookingSchema = new mongoose.Schema({
@@ -60,7 +54,6 @@ const serviceBookingSchema = new mongoose.Schema({
   gotra: { type: String, trim: true },
   sankalp: { type: String, trim: true },
   preferredDate: Date,
-  preferredLocation: { type: String, trim: true },
   bookingStatus: {
     type: String,
     enum: ["pending", "confirmed", "cancelled", "completed"],

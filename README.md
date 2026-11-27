@@ -4,12 +4,12 @@ Node.js + Express + MongoDB/Mongoose backend. Razorpay Checkout is implemented w
 
 ## 1. Install and run
 
-```bash
+
 npm install
 cp .env.example .env
 # edit .env values
 npm run dev
-```
+
 
 API default: `http://localhost:5000`
 
@@ -17,7 +17,7 @@ API default: `http://localhost:5000`
 
 Set a strong `ADMIN_BOOTSTRAP_KEY` in `.env`, then:
 
-```http
+
 POST /api/auth/bootstrap-admin
 x-bootstrap-key: YOUR_ADMIN_BOOTSTRAP_KEY
 Content-Type: application/json
@@ -28,7 +28,6 @@ Content-Type: application/json
   "email": "admin@example.com",
   "password": "ChangeThisPassword123"
 }
-```
 
 Remove/rotate `ADMIN_BOOTSTRAP_KEY` after creating admin. Admin login uses `/api/auth/login` like user login.
 
@@ -44,7 +43,7 @@ Remove/rotate `ADMIN_BOOTSTRAP_KEY` after creating admin. Admin login uses `/api
 
 ### Frontend Checkout outline
 
-```js
+
 const orderResponse = await fetch(`${API}/api/donations/create-order`, {
   method: "POST",
   headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -76,18 +75,20 @@ const options = {
 };
 const checkout = new window.Razorpay(options);
 checkout.open();
-```
+
 
 Load the script before the code above:
-```html
+
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-```
+
 
 **Important:** `payment.captured` webhook is the backup source of truth for asynchronous payment confirmation. Checkout handler alone is not proof of payment. This starter marks `receiptGenerated=true` after payment is captured/verified and allocates a unique receipt number at order creation; actual PDF/email receipt generation is not implemented.
 
 ## Service packages and bookings
 
-Admins create services at `/api/services` with `serviceCategory` set to `regular_puja`, `havan`, `seva`, or `special_puja`. `serviceAmounts` is an array of admin-managed price options. For `regular_puja`, each amount must include a unique `frequency`: `weekly`, `monthly`, `half_yearly`, or `yearly`. Service images are uploaded as `serviceImg`; package status is `draft`, `published`, or `archived`, with `active` controlling availability.
+Admins manage service subcategories at `/api/service-sub-categories` using `{ "name": "...", "serviceCategory": "..." }`. The service category must be `regular_puja`, `havan`, `seva`, or `special_puja`; list results may be filtered with `?serviceCategory=...`. Create subcategories before using their IDs in service package amounts. Subcategories in use by a service package cannot be deleted or moved to another category.
+
+Admins create services at `/api/services` with `serviceCategory` set to `regular_puja`, `havan`, `seva`, or `special_puja`. `serviceAmounts` is an array of admin-managed price options, each linked to a subcategory in the same service category via `serviceSubCategory`. For `regular_puja`, each amount must also include a unique `frequency`: `daily`, `weekly`, `monthly`, `half_yearly`, or `yearly`. Service images are uploaded as `serviceImg`; package status is `draft`, `published`, or `archived`, with `active` controlling availability.
 
 Example regular puja package body:
 ```json
@@ -96,10 +97,10 @@ Example regular puja package body:
   "serviceCategory": "regular_puja",
   "serviceDescription": "Regular Lakshmi puja service",
   "serviceAmounts": [
-    { "label": "Weekly", "amount": 501, "frequency": "weekly" },
-    { "label": "Monthly", "amount": 1501, "frequency": "monthly" },
-    { "label": "Half-yearly", "amount": 7501, "frequency": "half_yearly" },
-    { "label": "Yearly", "amount": 15001, "frequency": "yearly" }
+    { "label": "Weekly", "amount": 501, "frequency": "weekly", "serviceSubCategory": "<subcategory-id>" },
+    { "label": "Monthly", "amount": 1501, "frequency": "monthly", "serviceSubCategory": "<subcategory-id>" },
+    { "label": "Half-yearly", "amount": 7501, "frequency": "half_yearly", "serviceSubCategory": "<subcategory-id>" },
+    { "label": "Yearly", "amount": 15001, "frequency": "yearly", "serviceSubCategory": "<subcategory-id>" }
   ],
   "serviceBenefits": ["Puja performed by a priest"],
   "serviceRules": ["Preferred dates are subject to confirmation"],
@@ -108,14 +109,14 @@ Example regular puja package body:
 }
 ```
 
-Authenticated users create a service booking order with `servicePackageId`, `serviceAmountId`, `devoteeName`, and `devoteeType`. Optional fields include `devoteePhoto`, `devoteeCompanyName`, `devoteeDesignation`, `traditionalIntention`, `gotra`, `sankalp`, `preferredDate`, and `preferredLocation`. For organizations, send `employees` as a JSON array of `{ "name": "..." }`; for individuals, send `familyMembers` as a JSON array of `{ "name": "...", "relation": "..." }`. Upload employee and family photos as `employeePhotos` and `familyPhotos` files in matching array order. A devotee photo may be uploaded as `devoteePhoto`. The same endpoint accepts JSON with photo objects containing `url` and optional `publicId`.
+Authenticated users create a service booking order with `servicePackageId`, `serviceAmountId`, `devoteeName`, and `devoteeType`. Optional fields include `devoteePhoto`, `devoteeCompanyName`, `devoteeDesignation`, `traditionalIntention`, `gotra`, `sankalp`, `preferredDate`, and `preferredLocation`. For organizations, send `employees` as a JSON array of `{ "name": "...", "gotra": "..." }`; for individuals, send `familyMembers` as a JSON array of `{ "name": "...", "relation": "...", "gotra": "..." }`. Person-level `gotra` is optional. Upload employee and family photos as `employeePhotos` and `familyPhotos` files in matching array order. A devotee photo may be uploaded as `devoteePhoto`. The same endpoint accepts JSON with photo objects containing `url` and optional `publicId`.
 
 The server selects the amount from the service package and handles Razorpay order creation, signature/payment verification, and the webhook. Do not send a client-calculated amount.
 
 ## 4. Package payload examples
 
 Static fixed-amount package:
-```json
+
 {
   "name": "Annadanam",
   "description": "Support community meal seva",
@@ -128,10 +129,10 @@ Static fixed-amount package:
   ],
   "active": true
 }
-```
+
 
 Static custom amount:
-```json
+
 {
   "name": "General Donation",
   "category": "static",
@@ -141,10 +142,10 @@ Static custom amount:
   "benefits": ["Support temple activities"],
   "active": true
 }
-```
+
 
 Dynamic (date-limited) package:
-```json
+
 {
   "name": "Durga Puja Special",
   "category": "dynamic",
@@ -156,7 +157,7 @@ Dynamic (date-limited) package:
   "benefits": ["Special puja offering"],
   "active": true
 }
-```
+
 
 ## 5. API endpoints
 
@@ -175,6 +176,7 @@ Password reset emails require `EMAIL_USER` and `EMAIL_PASS`; configure `EMAIL_HO
 - `POST /api/packages` admin create; `PATCH/DELETE /api/packages/:id`
 - `GET /api/services` public active services; admin service listing at `/api/services/admin/all`
 - `POST /api/services` admin create; `PATCH/DELETE /api/services/:id`; admin detail at `/api/services/admin/:id`
+- `GET/POST /api/service-sub-categories` admin list/create; `PATCH/DELETE /api/service-sub-categories/:id` admin update/delete
 - `POST /api/service-bookings/create-order` authenticated; amount is selected server-side from the package
 - `POST /api/service-bookings/verify-payment` authenticated signature + payment API verification
 - `POST /api/service-bookings/razorpay/webhook` Razorpay webhook (raw body)
