@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Enquiry from "../models/Enquiry.js";
+import Enquiry from "../models/BookVisit.js";
 
 const enquiryVisitStatuses = ["pending", "visited", "not_visited"];
 

@@ -91,7 +91,7 @@ Admins manage service subcategories at `/api/service-sub-categories` using `{ "n
 Admins create services at `/api/services` with `serviceCategory` set to `regular_puja`, `havan`, `seva`, or `special_puja`. `serviceAmounts` is an array of admin-managed price options, each linked to a subcategory in the same service category via `serviceSubCategory`. For `regular_puja`, each amount must also include a unique `frequency`: `daily`, `weekly`, `monthly`, `half_yearly`, or `yearly`. Service images are uploaded as `serviceImg`; package status is `draft`, `published`, or `archived`, with `active` controlling availability.
 
 Example regular puja package body:
-```json
+
 {
   "serviceName": "Lakshmi Puja",
   "serviceCategory": "regular_puja",
@@ -107,7 +107,7 @@ Example regular puja package body:
   "active": true,
   "status": "published"
 }
-```
+
 
 Authenticated users create a service booking order with `servicePackageId`, `serviceAmountId`, `devoteeName`, and `devoteeType`. Optional fields include `devoteePhoto`, `devoteeCompanyName`, `devoteeDesignation`, `traditionalIntention`, `gotra`, `sankalp`, `preferredDate`, and `preferredLocation`. For organizations, send `employees` as a JSON array of `{ "name": "...", "gotra": "..." }`; for individuals, send `familyMembers` as a JSON array of `{ "name": "...", "relation": "...", "gotra": "..." }`. Person-level `gotra` is optional. Upload employee and family photos as `employeePhotos` and `familyPhotos` files in matching array order. A devotee photo may be uploaded as `devoteePhoto`. The same endpoint accepts JSON with photo objects containing `url` and optional `publicId`.
 
